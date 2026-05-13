@@ -1,0 +1,4 @@
+city,country,ghsl_urban_centre_id,world_region,world_bank_income_group,urban_area_km2_2025,population_2025,hdi_2020
+São Paulo,Brazil,6351,Latin America and the Caribbean,Upper Middle,1962,19485158.24,0.76
+Springfield,United States,small,Northern America,High income,25,100,0.91
+Springfield,United States,large,Northern America,High income,90,500,0.93

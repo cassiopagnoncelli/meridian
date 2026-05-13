@@ -1,0 +1,12 @@
+datasets/maxmind
+datasets/raw
+datasets/processed
+
+node_modules
+dist
+coverage
+.tsup
+.vitest
+
+lib/meridian
+

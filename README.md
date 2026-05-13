@@ -63,6 +63,7 @@ Optional `ibge_city_aliases.csv` and `ghsl_city_aliases.csv` files add MaxMind-d
 make data-host       # prepare local lib/meridian symlinks
 make data-validate   # validate host data files and sample lookups
 make data-compatibility  # generate MaxMind-to-IBGE/GHSL alias files
+make sanity-intersections  # compare canonical datasets against MaxMind intersections
 make audit-maxmind-city  # audit MaxMind city coverage against IBGE and GHSL
 make console         # open a REPL with ip(), ibge(), ghsl(), and meridian loaded
 make benchmark       # benchmark open(), ip(), ibge(), and ghsl()

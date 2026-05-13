@@ -47,17 +47,22 @@ const ghslRows = await csvRows(join(dataDir, "ghsl", "ghsl_city_metrics.csv"));
 const cityReader = await maxmind.open(join(dataDir, "maxmind", "GeoLite2-City.mmdb"));
 const maxmindRecords = enumerateMaxMindCityRecords(cityReader);
 
-const ibgeAudit = auditIbge(maxmindRecords, buildIbgeIndexes(ibgeRows));
-const ghslAudit = auditGhsl(maxmindRecords, buildGhslIndexes(ghslRows));
+const ibgeIndexes = buildIbgeIndexes(ibgeRows);
+const ghslIndexes = buildGhslIndexes(ghslRows);
+const ibgeAudit = auditIbge(maxmindRecords, ibgeIndexes);
+const ghslAudit = auditGhsl(maxmindRecords, ghslIndexes);
+const pipelineMetrics = calculatePipelineMetrics(maxmindRecords, ibgeIndexes, ghslIndexes);
 
 await writeJson(join(outputDir, "ip_to_ibge_summary.json"), ibgeAudit.summary);
 await writeCsv(join(outputDir, "ip_to_ibge_misses.csv"), ibgeAudit.misses);
 await writeJson(join(outputDir, "ip_to_ghsl_summary.json"), ghslAudit.summary);
 await writeCsv(join(outputDir, "ip_to_ghsl_misses.csv"), ghslAudit.misses);
+await writeJson(join(outputDir, "maxmind_pipeline_metrics.json"), pipelineMetrics);
 
 console.log(`MaxMind unique city records: ${maxmindRecords.length}`);
 printSummary("IBGE", ibgeAudit.summary);
 printSummary("GHSL", ghslAudit.summary);
+printPipelineMetrics(pipelineMetrics);
 console.log(`Wrote audit reports to ${outputDir}`);
 
 function enumerateMaxMindCityRecords(reader) {
@@ -246,6 +251,33 @@ function auditGhsl(records, indexes) {
   summary.unmatchedCityInOtherCountry = unmatchedCityInOtherCountry;
   summary.unmatchedCityAbsent = unmatchedCityAbsent;
   return { summary, misses: topRows(misses) };
+}
+
+function calculatePipelineMetrics(records, ibgeIndexes, ghslIndexes) {
+  const brazilRecords = records.filter(isBrazil);
+  const ibgeHits = brazilRecords.filter((record) => record.subdivisionIso && matchIbgeStage(record, ibgeIndexes) !== "unmatched").length;
+  const ghslBrazilHits = brazilRecords.filter((record) => matchGhslStage(record, ghslIndexes) !== "unmatched").length;
+  const ghslGlobalHits = records.filter((record) => matchGhslStage(record, ghslIndexes) !== "unmatched").length;
+
+  return {
+    direction: "MaxMind -> datasets",
+    normalization: "ASCII/no-mark, punctuation-insensitive, lowercase, whitespace-collapsed keys; non-ASCII-only names are ignored as match keys",
+    metrics: {
+      Ibge_metric: metric("IBGE intersection with MaxMind Brazilian cities / MaxMind Brazilian cities", ibgeHits, brazilRecords.length),
+      Ghsl_BR_metric: metric("GHSL intersection with MaxMind Brazilian cities / MaxMind Brazilian cities", ghslBrazilHits, brazilRecords.length),
+      Ghsl_metric: metric("GHSL intersection with MaxMind global city records / MaxMind global city records", ghslGlobalHits, records.length)
+    }
+  };
+}
+
+function metric(definition, hits, total) {
+  return {
+    definition,
+    hits,
+    total,
+    misses: total - hits,
+    rate: total === 0 ? 0 : Number((hits / total).toFixed(6))
+  };
 }
 
 function matchIbgeStage(record, indexes) {
@@ -459,6 +491,13 @@ function csvCell(value) {
 function printSummary(label, summary) {
   console.log(`${label}: matched ${summary.matchedTotal}/${summary.matchableTotal} (${(summary.matchRate * 100).toFixed(2)}%)`);
   console.log(`  raw=${summary.matchedRaw} normalized=${summary.matchedNormalized} alias=${summary.matchedAlias} unmatched=${summary.unmatched}`);
+}
+
+function printPipelineMetrics(summary) {
+  console.log("Pipeline metrics (MaxMind -> datasets, normalized):");
+  for (const [name, metric] of Object.entries(summary.metrics)) {
+    console.log(`  ${name}: ${metric.hits}/${metric.total} (${(metric.rate * 100).toFixed(2)}%)`);
+  }
 }
 
 function optionValue(name) {

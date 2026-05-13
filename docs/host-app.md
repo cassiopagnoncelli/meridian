@@ -45,6 +45,7 @@ From this repository, prepare and validate local data with:
 ```sh
 make data-host
 make data-compatibility
+make sanity-intersections
 make data-validate
 ```
 
@@ -52,6 +53,8 @@ make data-validate
 sample lookups for MaxMind, IBGE, and GHSL.
 `data-compatibility` writes optional city alias files into `lib/meridian` and
 summary JSON files under `reports/compatibility`.
+`sanity-intersections` compares canonical IBGE/GHSL rows against the generated
+MaxMind intersections and writes mismatch/missing CSV reports.
 
 To measure city-name coverage between MaxMind and the city datasets:
 

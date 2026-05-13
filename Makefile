@@ -9,7 +9,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup install build typecheck test tests ci clean distclean \
         data data-fetch-ibge data-processed data-host data-check data-validate \
-        audit-maxmind-city console smoke benchmark pack stats
+        audit-maxmind-city console c smoke benchmark pack stats
 
 MERIDIAN_DATA_DIR ?= $(CURDIR)/lib/meridian
 NPM_CACHE ?= /private/tmp/meridian-npm-cache
@@ -102,6 +102,8 @@ audit-maxmind-city: data-host ## Audit MaxMind city names against IBGE and GHSL 
 
 console: build data-host ## Open a Meridian REPL with lookup helpers loaded
 	MERIDIAN_DATA_DIR="$(MERIDIAN_DATA_DIR)" node scripts/console.mjs --data-dir "$(MERIDIAN_DATA_DIR)"
+
+c: console ## Alias for console
 
 smoke: build data-host ## Run a quick local library smoke test against MERIDIAN_DATA_DIR
 	@node -e 'const { Meridian } = require("./dist/index.cjs"); (async () => { const m = await Meridian.open({ dataDir: process.env.MERIDIAN_DATA_DIR || "$(MERIDIAN_DATA_DIR)" }); console.log(m.sources()); console.log(m.ibge("São Paulo", "SP")); console.log(m.ghsl("São Paulo", "Brazil")); console.log(m.ip("8.8.8.8")); })().catch((error) => { console.error(error); process.exit(1); });'

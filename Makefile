@@ -8,7 +8,8 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 .PHONY: help setup install build typecheck test tests ci clean distclean \
-        data data-fetch-ibge data-processed data-host data-check smoke pack stats
+        data data-fetch-ibge data-processed data-host data-check data-validate \
+        smoke benchmark pack stats
 
 MERIDIAN_DATA_DIR ?= $(CURDIR)/lib/meridian
 NPM_CACHE ?= /private/tmp/meridian-npm-cache
@@ -92,8 +93,15 @@ data-check: ## Verify required source and processed data files exist
 		printf "ok  %s\n" "$$file"; \
 	done
 
+data-validate: build data-host ## Validate host data layout, CSV schemas, and sample lookups
+	node scripts/validate_data.mjs --data-dir "$(MERIDIAN_DATA_DIR)"
+
 smoke: build data-host ## Run a quick local library smoke test against MERIDIAN_DATA_DIR
 	@node -e 'const { Meridian } = require("./dist/index.cjs"); (async () => { const m = await Meridian.open({ dataDir: process.env.MERIDIAN_DATA_DIR || "$(MERIDIAN_DATA_DIR)" }); console.log(m.sources()); console.log(m.ibge("São Paulo", "SP")); console.log(m.ghsl("São Paulo", "Brazil")); console.log(m.ip("8.8.8.8")); })().catch((error) => { console.error(error); process.exit(1); });'
+
+N ?= 10000
+benchmark: build data-host ## Benchmark open(), ip(), ibge(), and ghsl() lookups (N=10000 default)
+	node scripts/benchmark.mjs --data-dir "$(MERIDIAN_DATA_DIR)" --n "$(N)"
 
 pack: build ## Validate npm package contents without publishing
 	$(NPM) pack --dry-run

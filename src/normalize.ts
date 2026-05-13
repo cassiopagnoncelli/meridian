@@ -1,3 +1,5 @@
+import { canonicalBrazilState, canonicalCountry } from "./aliases";
+
 export function normalizeKey(value: unknown): string {
   return String(value ?? "")
     .normalize("NFKD")
@@ -9,9 +11,9 @@ export function normalizeKey(value: unknown): string {
 }
 
 export function cityCountryKey(city: string, country: string): string {
-  return `${normalizeKey(city)}|${normalizeKey(country)}`;
+  return `${normalizeKey(city)}|${normalizeKey(canonicalCountry(country))}`;
 }
 
 export function cityStateKey(city: string, state: string): string {
-  return `${normalizeKey(city)}|${normalizeKey(state)}`;
+  return `${normalizeKey(city)}|${normalizeKey(canonicalBrazilState(state))}`;
 }

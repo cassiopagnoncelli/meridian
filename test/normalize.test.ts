@@ -13,4 +13,11 @@ describe("normalizeKey", () => {
     expect(cityStateKey("São Paulo", "sp")).toBe("sao paulo|sp");
     expect(cityCountryKey("São Paulo", "Brazil")).toBe("sao paulo|brazil");
   });
+
+  it("normalizes common country and Brazilian state aliases in keys", () => {
+    expect(cityStateKey("São Paulo", "São Paulo")).toBe("sao paulo|sp");
+    expect(cityCountryKey("São Paulo", "Brasil")).toBe("sao paulo|brazil");
+    expect(cityCountryKey("London", "UK")).toBe("london|united kingdom");
+    expect(cityCountryKey("New York", "USA")).toBe("new york|united states");
+  });
 });

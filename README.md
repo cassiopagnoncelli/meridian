@@ -26,6 +26,7 @@ const meridian = await Meridian.open();
 const ip = meridian.ip("8.8.8.8");
 const ibge = meridian.ibge("São Paulo", "SP");
 const ghsl = meridian.ghsl("São Paulo", "Brazil");
+const metadata = meridian.metadata();
 ```
 
 Use a custom data directory:
@@ -46,3 +47,16 @@ const meridian = await Meridian.open({
 - `ghsl()` returns city profile metrics only: urban-centre id, region, income group, area, population, and HDI. GHSL GDP is intentionally omitted from processed output.
 
 Lookup keys are accent-insensitive, punctuation-insensitive, and case-insensitive.
+Common country aliases (`US`, `USA`, `UK`, `Brasil`) and Brazilian state names
+(`São Paulo`, `Paraná`, etc.) are normalized at lookup time.
+
+## Operations
+
+```sh
+make data-host       # prepare local lib/meridian symlinks
+make data-validate   # validate host data files and sample lookups
+make benchmark       # benchmark open(), ip(), ibge(), and ghsl()
+make ci              # typecheck, tests, and package dry-run
+```
+
+See [docs/host-app.md](docs/host-app.md) for host application setup.

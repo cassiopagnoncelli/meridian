@@ -51,6 +51,15 @@ describe("Meridian city data", () => {
     expect(meridian.ibge("Sao Paulo", "sp")?.municipalityCode).toBe("3550308");
   });
 
+  it("matches IBGE Brazilian state names as aliases", async () => {
+    const meridian = await Meridian.open({
+      dataDir: fixtureDataDir,
+      sources: ["ibge"]
+    });
+
+    expect(meridian.ibge("Sao Paulo", "São Paulo")?.municipalityCode).toBe("3550308");
+  });
+
   it("returns null for unknown IBGE city/state pairs", async () => {
     const meridian = await Meridian.open({
       dataDir: fixtureDataDir,
@@ -79,6 +88,15 @@ describe("Meridian city data", () => {
     });
   });
 
+  it("matches GHSL country aliases", async () => {
+    const meridian = await Meridian.open({
+      dataDir: fixtureDataDir,
+      sources: ["ghsl"]
+    });
+
+    expect(meridian.ghsl("São Paulo", "Brasil")?.urbanCentreId).toBe("6351");
+  });
+
   it("uses the largest-population GHSL row for duplicate city-country keys", async () => {
     const meridian = await Meridian.open({
       dataDir: fixtureDataDir,
@@ -90,6 +108,20 @@ describe("Meridian city data", () => {
 });
 
 describe("Meridian data loading", () => {
+  it("returns metadata for selected source files", async () => {
+    const meridian = await Meridian.open({
+      dataDir: fixtureDataDir,
+      sources: ["ibge", "ghsl"]
+    });
+
+    const metadata = meridian.metadata();
+    expect(metadata.dataDir).toBe(fixtureDataDir);
+    expect(metadata.sources).toEqual({ maxmind: false, ibge: true, ghsl: true });
+    expect(metadata.files).toHaveLength(2);
+    expect(metadata.files.every((file) => file.exists)).toBe(true);
+    expect(metadata.files.every((file) => (file.sizeBytes ?? 0) > 0)).toBe(true);
+  });
+
   it("fails fast in strict mode when selected source files are missing", async () => {
     await mkdir(emptyDataDir, { recursive: true });
 

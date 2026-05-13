@@ -8,6 +8,20 @@ export type MeridianOpenOptions = {
 
 export type MeridianSourcesStatus = Record<MeridianSource, boolean>;
 
+export type MeridianFileMetadata = {
+  source: MeridianSource;
+  path: string;
+  exists: boolean;
+  sizeBytes: number | null;
+  mtimeMs: number | null;
+};
+
+export type MeridianMetadata = {
+  dataDir: string;
+  sources: MeridianSourcesStatus;
+  files: MeridianFileMetadata[];
+};
+
 export type MeridianIpResult = {
   source: "maxmind";
   ip: string;

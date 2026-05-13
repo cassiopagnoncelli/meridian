@@ -1,4 +1,4 @@
-import { access } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
 import { isIP } from "node:net";
 import { join } from "node:path";
 
@@ -12,6 +12,7 @@ import type {
   GhslCityMetrics,
   IbgeMunicipalityIncome,
   MeridianIpResult,
+  MeridianMetadata,
   MeridianOpenOptions,
   MeridianSource,
   MeridianSourcesStatus
@@ -25,12 +26,14 @@ type LoadedSources = {
 
 export class Meridian {
   readonly dataDir: string;
+  #files: MeridianMetadata["files"];
   #maxmind: MaxMindReaders | null;
   #ibge: IbgeIndex | null;
   #ghsl: GhslIndex | null;
 
-  private constructor(dataDir: string, loaded: LoadedSources) {
+  private constructor(dataDir: string, files: MeridianMetadata["files"], loaded: LoadedSources) {
     this.dataDir = dataDir;
+    this.#files = files;
     this.#maxmind = loaded.maxmind;
     this.#ibge = loaded.ibge;
     this.#ghsl = loaded.ghsl;
@@ -40,6 +43,7 @@ export class Meridian {
     const dataDir = options.dataDir ?? defaultDataDir();
     const strict = options.strict ?? true;
     const selectedSources = normalizeSources(options.sources ?? ALL_SOURCES);
+    const files = await collectFileMetadata(requiredFiles(dataDir, selectedSources));
     const availableSources = await resolveAvailableSources(dataDir, selectedSources, strict);
 
     const [maxmind, ibge, ghsl] = await Promise.all([
@@ -52,7 +56,7 @@ export class Meridian {
         : Promise.resolve(null)
     ]);
 
-    return new Meridian(dataDir, { maxmind, ibge, ghsl });
+    return new Meridian(dataDir, files, { maxmind, ibge, ghsl });
   }
 
   ip(ipAddress: string): MeridianIpResult | null {
@@ -81,6 +85,14 @@ export class Meridian {
       maxmind: this.#maxmind !== null,
       ibge: this.#ibge !== null,
       ghsl: this.#ghsl !== null
+    };
+  }
+
+  metadata(): MeridianMetadata {
+    return {
+      dataDir: this.dataDir,
+      sources: this.sources(),
+      files: this.#files.map((file) => ({ ...file }))
     };
   }
 
@@ -142,4 +154,29 @@ async function missingFiles(files: RequiredFile[]): Promise<RequiredFile[]> {
     })
   );
   return checks.filter((file): file is RequiredFile => file !== null);
+}
+
+async function collectFileMetadata(files: RequiredFile[]): Promise<MeridianMetadata["files"]> {
+  return Promise.all(
+    files.map(async (file) => {
+      try {
+        const info = await stat(file.path);
+        return {
+          source: file.source,
+          path: file.path,
+          exists: true,
+          sizeBytes: info.size,
+          mtimeMs: info.mtimeMs
+        };
+      } catch {
+        return {
+          source: file.source,
+          path: file.path,
+          exists: false,
+          sizeBytes: null,
+          mtimeMs: null
+        };
+      }
+    })
+  );
 }

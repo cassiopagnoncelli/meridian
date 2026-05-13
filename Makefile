@@ -9,7 +9,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup install build typecheck test tests ci clean distclean \
         data data-fetch-ibge data-processed data-host data-check data-validate \
-        smoke benchmark pack stats
+        audit-maxmind-city console smoke benchmark pack stats
 
 MERIDIAN_DATA_DIR ?= $(CURDIR)/lib/meridian
 NPM_CACHE ?= /private/tmp/meridian-npm-cache
@@ -17,11 +17,12 @@ NPM := NPM_CONFIG_CACHE=$(NPM_CACHE) npm
 
 SRC_DIRS = src test scripts
 LOC_PRUNE = \( -name node_modules -o -name dist -o -name coverage -o -name .tsup -o -name .vitest \) -prune
-LOC_FIND_TYPES = \( -name '*.ts' -o -name '*.js' -o -name '*.json' -o -name '*.py' -o -name '*.md' \)
+LOC_FIND_TYPES = \( -name '*.ts' -o -name '*.js' -o -name '*.mjs' -o -name '*.json' -o -name '*.py' -o -name '*.md' \)
 LOC_GIT_PATHS = \
 	':(glob)src/**/*.ts' \
 	':(glob)test/**/*.ts' \
 	':(glob)scripts/**/*.py' \
+	':(glob)scripts/**/*.mjs' \
 	package.json \
 	tsconfig.json \
 	tsup.config.ts \
@@ -32,7 +33,7 @@ help: ## Show this help
 	@echo "Usage: make <target>"
 	@echo ""
 	@echo "Targets:"
-	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 setup: install data-host ## Install dependencies and prepare default lib/meridian data links
 
@@ -53,7 +54,7 @@ tests: test ## Alias for test
 ci: typecheck test pack ## Run the local CI flow
 
 clean: ## Remove generated build and test artefacts
-	rm -rf dist coverage .tsup .vitest
+	rm -rf dist coverage .tsup .vitest reports
 
 distclean: clean ## Remove generated artefacts and installed dependencies
 	rm -rf node_modules
@@ -95,6 +96,12 @@ data-check: ## Verify required source and processed data files exist
 
 data-validate: build data-host ## Validate host data layout, CSV schemas, and sample lookups
 	node scripts/validate_data.mjs --data-dir "$(MERIDIAN_DATA_DIR)"
+
+audit-maxmind-city: data-host ## Audit MaxMind city names against IBGE and GHSL indexes
+	node scripts/audit_maxmind_city.mjs --data-dir "$(MERIDIAN_DATA_DIR)" --output-dir "$(CURDIR)/reports/audit"
+
+console: build data-host ## Open a Meridian REPL with lookup helpers loaded
+	MERIDIAN_DATA_DIR="$(MERIDIAN_DATA_DIR)" node scripts/console.mjs --data-dir "$(MERIDIAN_DATA_DIR)"
 
 smoke: build data-host ## Run a quick local library smoke test against MERIDIAN_DATA_DIR
 	@node -e 'const { Meridian } = require("./dist/index.cjs"); (async () => { const m = await Meridian.open({ dataDir: process.env.MERIDIAN_DATA_DIR || "$(MERIDIAN_DATA_DIR)" }); console.log(m.sources()); console.log(m.ibge("São Paulo", "SP")); console.log(m.ghsl("São Paulo", "Brazil")); console.log(m.ip("8.8.8.8")); })().catch((error) => { console.error(error); process.exit(1); });'

@@ -46,3 +46,21 @@ make data-validate
 
 `data-validate` checks required CSV columns, opens all selected sources, and runs
 sample lookups for MaxMind, IBGE, and GHSL.
+
+To measure city-name coverage between MaxMind and the city datasets:
+
+```sh
+make audit-maxmind-city
+```
+
+The audit enumerates unique MaxMind City records, then writes summary JSON and
+miss CSV files under `reports/audit`.
+
+For manual lookups during development:
+
+```sh
+make console
+```
+
+The console opens Meridian once and exposes `ip(...)`, `ibge(...)`, `ghsl(...)`,
+`sources()`, `metadata()`, and the full `meridian` instance.

@@ -55,6 +55,8 @@ Common country aliases (`US`, `USA`, `UK`, `Brasil`) and Brazilian state names
 ```sh
 make data-host       # prepare local lib/meridian symlinks
 make data-validate   # validate host data files and sample lookups
+make audit-maxmind-city  # audit MaxMind city coverage against IBGE and GHSL
+make console         # open a REPL with ip(), ibge(), ghsl(), and meridian loaded
 make benchmark       # benchmark open(), ip(), ibge(), and ghsl()
 make ci              # typecheck, tests, and package dry-run
 ```

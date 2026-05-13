@@ -22,6 +22,12 @@ export type MeridianMetadata = {
   files: MeridianFileMetadata[];
 };
 
+export type MeridianJsonPrimitive = string | number | boolean | null;
+export type MeridianJsonValue =
+  | MeridianJsonPrimitive
+  | MeridianJsonValue[]
+  | { [key: string]: MeridianJsonValue };
+
 export type MeridianIpResult = {
   source: "maxmind";
   ip: string;
@@ -31,20 +37,23 @@ export type MeridianIpResult = {
     latitude: number | null;
     longitude: number | null;
     timeZone: string | null;
-    raw: unknown | null;
   };
   country: {
     isoCode: string | null;
     name: string | null;
     geonameId: number | null;
-    raw: unknown | null;
   };
   asn: {
     autonomousSystemNumber: number | null;
     autonomousSystemOrganization: string | null;
     network: string | null;
-    raw: unknown | null;
   };
+};
+
+export type MeridianIpRawResult = {
+  city: MeridianJsonValue | null;
+  country: MeridianJsonValue | null;
+  asn: MeridianJsonValue | null;
 };
 
 export type IbgeMunicipalityIncome = {

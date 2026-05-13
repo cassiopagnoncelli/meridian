@@ -153,7 +153,7 @@ describe("Meridian MaxMind", () => {
     existsSync(resolve(maxmindDataDir, "maxmind/GeoLite2-Country.mmdb")) &&
     existsSync(resolve(maxmindDataDir, "maxmind/GeoLite2-ASN.mmdb"));
 
-  it.skipIf(!hasMaxMindFixtures)("returns normalized and raw MaxMind data", async () => {
+  it.skipIf(!hasMaxMindFixtures)("returns polished MaxMind data by default", async () => {
     const meridian = await Meridian.open({
       dataDir: maxmindDataDir,
       sources: ["maxmind"]
@@ -163,8 +163,24 @@ describe("Meridian MaxMind", () => {
 
     expect(result?.source).toBe("maxmind");
     expect(result?.ip).toBe("8.8.8.8");
-    expect(result?.country.raw).not.toBeNull();
-    expect(result?.asn.raw).not.toBeNull();
+    expect(result?.city).not.toHaveProperty("raw");
+    expect(result?.country).not.toHaveProperty("raw");
+    expect(result?.asn).not.toHaveProperty("raw");
+  });
+
+  it.skipIf(!hasMaxMindFixtures)("returns raw MaxMind JSON when requested", async () => {
+    const meridian = await Meridian.open({
+      dataDir: maxmindDataDir,
+      sources: ["maxmind"]
+    });
+
+    const result = meridian.ip("8.8.8.8", true);
+
+    expect(result).not.toHaveProperty("source");
+    expect(result).not.toHaveProperty("ip");
+    expect(result?.country).not.toBeNull();
+    expect(result?.asn).not.toBeNull();
+    expect(JSON.parse(JSON.stringify(result))).toEqual(result);
   });
 
   it("throws MeridianInputError for invalid IP addresses", async () => {

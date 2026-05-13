@@ -63,4 +63,5 @@ make console
 ```
 
 The console opens Meridian once and exposes `ip(...)`, `ibge(...)`, `ghsl(...)`,
-`sources()`, `metadata()`, and the full `meridian` instance.
+`sources()`, `metadata()`, and the full `meridian` instance. Use
+`ip("8.8.8.8", true)` when you want raw MaxMind JSON payloads.

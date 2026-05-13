@@ -11,6 +11,7 @@ import { ALL_SOURCES, defaultDataDir, requiredFiles, type RequiredFile } from ".
 import type {
   GhslCityMetrics,
   IbgeMunicipalityIncome,
+  MeridianIpRawResult,
   MeridianIpResult,
   MeridianMetadata,
   MeridianOpenOptions,
@@ -59,14 +60,18 @@ export class Meridian {
     return new Meridian(dataDir, files, { maxmind, ibge, ghsl });
   }
 
-  ip(ipAddress: string): MeridianIpResult | null {
+  ip(ipAddress: string): MeridianIpResult | null;
+  ip(ipAddress: string, raw: false): MeridianIpResult | null;
+  ip(ipAddress: string, raw: true): MeridianIpRawResult | null;
+  ip(ipAddress: string, raw: boolean): MeridianIpResult | MeridianIpRawResult | null;
+  ip(ipAddress: string, raw = false): MeridianIpResult | MeridianIpRawResult | null {
     if (!isIP(ipAddress)) {
       throw new MeridianInputError(`Invalid IP address: ${ipAddress}`);
     }
     if (!this.#maxmind) {
       return null;
     }
-    return lookupIp(this.#maxmind, ipAddress);
+    return raw ? lookupIp(this.#maxmind, ipAddress, true) : lookupIp(this.#maxmind, ipAddress);
   }
 
   ibge(city: string, state: string): IbgeMunicipalityIncome | null {

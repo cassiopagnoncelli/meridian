@@ -18,7 +18,7 @@ const meridian = await Meridian.open({
 const helpers = {
   meridian,
   m: meridian,
-  ip: (ipAddress) => meridian.ip(ipAddress),
+  ip: (ipAddress, raw = false) => meridian.ip(ipAddress, raw),
   ibge: (city, state) => meridian.ibge(city, state),
   ghsl: (city, country) => meridian.ghsl(city, country),
   sources: () => meridian.sources(),
@@ -42,7 +42,7 @@ if (evalCode) {
 
 function startConsole() {
   console.log(`Meridian console loaded from ${dataDir}`);
-  console.log('Helpers: ip("8.8.8.8"), ibge("São Paulo", "SP"), ghsl("São Paulo", "Brazil"), sources(), metadata(), meridian');
+  console.log('Helpers: ip("8.8.8.8"), ip("8.8.8.8", true), ibge("São Paulo", "SP"), ghsl("São Paulo", "Brazil"), sources(), metadata(), meridian');
 
   const server = repl.start({
     prompt: "meridian> ",
@@ -56,7 +56,7 @@ function startConsole() {
     help: "Show Meridian console helpers",
     action() {
       this.clearBufferedCommand();
-      console.log('Helpers: ip("8.8.8.8"), ibge("São Paulo", "SP"), ghsl("São Paulo", "Brazil"), sources(), metadata(), meridian');
+      console.log('Helpers: ip("8.8.8.8"), ip("8.8.8.8", true), ibge("São Paulo", "SP"), ghsl("São Paulo", "Brazil"), sources(), metadata(), meridian');
       this.displayPrompt();
     }
   });

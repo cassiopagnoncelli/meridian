@@ -24,6 +24,7 @@ import { Meridian } from "meridian";
 const meridian = await Meridian.open();
 
 const ip = meridian.ip("8.8.8.8");
+const rawIp = meridian.ip("8.8.8.8", true);
 const ibge = meridian.ibge("São Paulo", "SP");
 const ghsl = meridian.ghsl("São Paulo", "Brazil");
 const metadata = meridian.metadata();
@@ -42,7 +43,7 @@ const meridian = await Meridian.open({
 
 ## Data Semantics
 
-- `ip()` returns normalized city, country, and ASN fields plus raw MaxMind payloads.
+- `ip()` returns polished city, country, and ASN fields. Use `ip(address, true)` for raw MaxMind JSON payloads only.
 - `ibge()` returns 2022 mean and median monthly household income per capita in BRL.
 - `ghsl()` returns city profile metrics only: urban-centre id, region, income group, area, population, and HDI. GHSL GDP is intentionally omitted from processed output.
 

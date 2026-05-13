@@ -20,6 +20,12 @@ export type MaxMindReaders = {
   asn: ReaderModel;
 };
 
+export type MaxMindLookup = {
+  city: City | null;
+  country: Country | null;
+  asn: Asn | null;
+};
+
 export async function loadMaxMind(dataDir: string): Promise<MaxMindReaders> {
   const maxmindDir = join(dataDir, "maxmind");
   const [city, country, asn] = await Promise.all([
@@ -43,47 +49,99 @@ export function lookupIp(
   ipAddress: string,
   raw = false
 ): MeridianIpRawResult | MeridianIpResult {
+  const lookup = lookupMaxMind(readers, ipAddress);
+  return raw ? rawMaxMindLookup(lookup) : polishMaxMindLookup(ipAddress, lookup);
+}
+
+export function lookupMaxMind(readers: MaxMindReaders, ipAddress: string): MaxMindLookup {
   if (!isIP(ipAddress)) {
     throw new MeridianInputError(`Invalid IP address: ${ipAddress}`);
   }
 
-  const city = safeLookup(() => readers.city.city(ipAddress));
-  const country = safeLookup(() => readers.country.country(ipAddress));
-  const asn = safeLookup(() => readers.asn.asn(ipAddress));
+  return {
+    city: safeLookup(() => readers.city.city(ipAddress)),
+    country: safeLookup(() => readers.country.country(ipAddress)),
+    asn: safeLookup(() => readers.asn.asn(ipAddress))
+  };
+}
 
-  if (raw) {
-    return {
-      city: toJson(city),
-      country: toJson(country),
-      asn: toJson(asn)
-    };
-  }
+export function rawMaxMindLookup(lookup: MaxMindLookup): MeridianIpRawResult {
+  return {
+    city: toJson(lookup.city),
+    country: toJson(lookup.country),
+    asn: toJson(lookup.asn)
+  };
+}
+
+export function polishMaxMindLookup(ipAddress: string, lookup: MaxMindLookup): MeridianIpResult {
+  const subdivision = lookup.city?.subdivisions?.[0];
 
   return {
     source: "maxmind",
     ip: ipAddress,
     city: {
-      name: city?.city?.names.en ?? null,
-      geonameId: city?.city?.geonameId ?? null,
-      latitude: city?.location?.latitude ?? null,
-      longitude: city?.location?.longitude ?? null,
-      timeZone: city?.location?.timeZone ?? null
+      name: lookup.city?.city?.names.en ?? null,
+      geonameId: lookup.city?.city?.geonameId ?? null,
+      latitude: lookup.city?.location?.latitude ?? null,
+      longitude: lookup.city?.location?.longitude ?? null,
+      timeZone: lookup.city?.location?.timeZone ?? null
+    },
+    subdivision: {
+      isoCode: subdivision?.isoCode ?? null,
+      name: subdivision?.names.en ?? null,
+      geonameId: subdivision?.geonameId ?? null
     },
     country: {
-      isoCode: country?.country?.isoCode ?? city?.country?.isoCode ?? null,
-      name: country?.country?.names.en ?? city?.country?.names.en ?? null,
-      geonameId: country?.country?.geonameId ?? city?.country?.geonameId ?? null
+      isoCode: lookup.country?.country?.isoCode ?? lookup.city?.country?.isoCode ?? null,
+      name: lookup.country?.country?.names.en ?? lookup.city?.country?.names.en ?? null,
+      geonameId: lookup.country?.country?.geonameId ?? lookup.city?.country?.geonameId ?? null
     },
     asn: {
-      autonomousSystemNumber: asn?.autonomousSystemNumber ?? null,
-      autonomousSystemOrganization: asn?.autonomousSystemOrganization ?? null,
-      network: asn?.network ?? null
+      autonomousSystemNumber: lookup.asn?.autonomousSystemNumber ?? null,
+      autonomousSystemOrganization: lookup.asn?.autonomousSystemOrganization ?? null,
+      network: lookup.asn?.network ?? null
     }
   };
 }
 
+export function maxMindCityNameVariants(lookup: MaxMindLookup): string[] {
+  return unique([
+    lookup.city?.city?.names.en,
+    ...objectValues(lookup.city?.city?.names)
+  ]).filter((city) => asciiKey(city).length > 0);
+}
+
+export function maxMindCountryVariants(lookup: MaxMindLookup): string[] {
+  return unique([
+    lookup.country?.country?.isoCode,
+    lookup.city?.country?.isoCode,
+    lookup.country?.country?.names.en,
+    lookup.city?.country?.names.en,
+    ...objectValues(lookup.country?.country?.names),
+    ...objectValues(lookup.city?.country?.names)
+  ]);
+}
+
 function toJson(value: City | Country | Asn | null): MeridianJsonValue | null {
   return value === null ? null : JSON.parse(JSON.stringify(value));
+}
+
+function objectValues(value: object | undefined): string[] {
+  return Object.values(value ?? {}).filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function unique(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0))];
+}
+
+function asciiKey(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^0-9A-Za-z]+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 function safeLookup<T extends City | Country | Asn>(lookup: () => T): T | null {

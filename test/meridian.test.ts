@@ -1,14 +1,19 @@
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
 import { Meridian, MeridianDataError, MeridianInputError } from "../src";
 
 const fixtureDataDir = resolve("test/fixtures/meridian");
+const noAliasDataDir = resolve("test/fixtures/meridian-no-alias");
 const emptyDataDir = resolve("test/fixtures/empty");
 const maxmindDataDir = resolve("datasets");
+const hostDataDir = resolve("lib/meridian");
+const execFileAsync = promisify(execFile);
 
 describe("Meridian city data", () => {
   it("loads selected CSV sources and reports source status", async () => {
@@ -60,6 +65,15 @@ describe("Meridian city data", () => {
     expect(meridian.ibge("Sao Paulo", "São Paulo")?.municipalityCode).toBe("3550308");
   });
 
+  it("matches IBGE generated city aliases", async () => {
+    const meridian = await Meridian.open({
+      dataDir: fixtureDataDir,
+      sources: ["ibge"]
+    });
+
+    expect(meridian.ibge("Sampa", "SP")?.municipalityCode).toBe("3550308");
+  });
+
   it("returns null for unknown IBGE city/state pairs", async () => {
     const meridian = await Meridian.open({
       dataDir: fixtureDataDir,
@@ -95,6 +109,15 @@ describe("Meridian city data", () => {
     });
 
     expect(meridian.ghsl("São Paulo", "Brasil")?.urbanCentreId).toBe("6351");
+  });
+
+  it("matches GHSL generated city aliases", async () => {
+    const meridian = await Meridian.open({
+      dataDir: fixtureDataDir,
+      sources: ["ghsl"]
+    });
+
+    expect(meridian.ghsl("Sampa", "BR")?.urbanCentreId).toBe("6351");
   });
 
   it("uses the largest-population GHSL row for duplicate city-country keys", async () => {
@@ -145,6 +168,16 @@ describe("Meridian data loading", () => {
     expect(meridian.sources()).toEqual({ maxmind: false, ibge: false, ghsl: false });
     expect(meridian.ibge("São Paulo", "SP")).toBeNull();
   });
+
+  it("does not require optional city alias files in strict mode", async () => {
+    const meridian = await Meridian.open({
+      dataDir: noAliasDataDir,
+      sources: ["ibge", "ghsl"]
+    });
+
+    expect(meridian.ibge("Sao Paulo", "SP")?.municipalityCode).toBe("3550308");
+    expect(meridian.ghsl("Sao Paulo", "Brazil")?.urbanCentreId).toBe("6351");
+  });
 });
 
 describe("Meridian MaxMind", () => {
@@ -163,6 +196,11 @@ describe("Meridian MaxMind", () => {
 
     expect(result?.source).toBe("maxmind");
     expect(result?.ip).toBe("8.8.8.8");
+    expect(result?.subdivision).toEqual({
+      isoCode: null,
+      name: null,
+      geonameId: null
+    });
     expect(result?.city).not.toHaveProperty("raw");
     expect(result?.country).not.toHaveProperty("raw");
     expect(result?.asn).not.toHaveProperty("raw");
@@ -181,6 +219,45 @@ describe("Meridian MaxMind", () => {
     expect(result?.country).not.toBeNull();
     expect(result?.asn).not.toBeNull();
     expect(JSON.parse(JSON.stringify(result))).toEqual(result);
+  });
+
+  it.skipIf(!hasHostFixtures())("enriches Brazilian IP city data with IBGE and GHSL", async () => {
+    const meridian = await Meridian.open({
+      dataDir: hostDataDir
+    });
+
+    const result = meridian.ip("200.160.2.3", false, true);
+
+    expect(result?.city.name).toBe("São Paulo");
+    expect(result?.subdivision.isoCode).toBe("SP");
+    expect(result?.ibge?.municipalityCode).toBe("3550308");
+    expect(result?.ghsl?.country).toBe("Brazil");
+  });
+
+  it.skipIf(!hasHostFixtures())("enriches non-Brazil IP city data with GHSL only", async () => {
+    const meridian = await Meridian.open({
+      dataDir: hostDataDir
+    });
+
+    const result = meridian.ip("62.210.16.2", false, true);
+
+    expect(result?.country.isoCode).toBe("FR");
+    expect(result?.ibge).toBeNull();
+    expect(result?.ghsl?.city).toBe("Paris");
+    expect(result?.ghsl?.country).toBe("France");
+  });
+
+  it.skipIf(!hasHostFixtures())("keeps raw mode raw-only even when city enrichment is requested", async () => {
+    const meridian = await Meridian.open({
+      dataDir: hostDataDir
+    });
+
+    const result = meridian.ip("200.160.2.3", true, true);
+
+    expect(result).not.toHaveProperty("source");
+    expect(result).not.toHaveProperty("ibge");
+    expect(result).not.toHaveProperty("ghsl");
+    expect(result?.city).not.toBeNull();
   });
 
   it("throws MeridianInputError for invalid IP addresses", async () => {
@@ -204,3 +281,27 @@ describe("Meridian MaxMind", () => {
     ).rejects.toThrow(MeridianDataError);
   });
 });
+
+describe("compatibility alias tooling", () => {
+  it("prints stable generated alias CSV headers", async () => {
+    const { stdout } = await execFileAsync("node", [
+      "scripts/build_compatibility_aliases.mjs",
+      "--print-headers"
+    ]);
+
+    expect(JSON.parse(stdout)).toEqual({
+      ibge: ["alias_city", "state", "ibge_municipality_code"],
+      ghsl: ["alias_city", "country", "ghsl_urban_centre_id"]
+    });
+  });
+});
+
+function hasHostFixtures(): boolean {
+  return (
+    existsSync(resolve(hostDataDir, "maxmind/GeoLite2-City.mmdb")) &&
+    existsSync(resolve(hostDataDir, "maxmind/GeoLite2-Country.mmdb")) &&
+    existsSync(resolve(hostDataDir, "maxmind/GeoLite2-ASN.mmdb")) &&
+    existsSync(resolve(hostDataDir, "ibge/ibge_municipality_income.csv")) &&
+    existsSync(resolve(hostDataDir, "ghsl/ghsl_city_metrics.csv"))
+  );
+}

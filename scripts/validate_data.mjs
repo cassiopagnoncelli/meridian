@@ -46,6 +46,11 @@ assert(ghsl !== null && typeof ghsl.population_2025 === "number", "GHSL São Pau
 const ip = meridian.ip("8.8.8.8");
 assert(ip?.asn.autonomousSystemNumber !== null, "MaxMind ASN lookup works");
 
+const enrichedIp = meridian.ip("200.160.2.3", false, true);
+assert(enrichedIp?.subdivision.isoCode === "SP", "MaxMind subdivision lookup works");
+assert(enrichedIp?.ibge?.municipalityCode === "3550308", "IP-to-IBGE city enrichment works");
+assert(enrichedIp?.ghsl?.country === "Brazil", "IP-to-GHSL city enrichment works");
+
 console.log(`ok  validated Meridian data at ${dataDir}`);
 
 async function assertColumns(path, requiredColumns) {

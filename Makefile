@@ -9,7 +9,7 @@ SHELL := /bin/bash
 
 .PHONY: help setup install build typecheck test tests ci clean distclean \
         data data-fetch-ibge data-processed data-host data-check data-validate \
-        audit-maxmind-city console c smoke benchmark pack stats
+        data-compatibility audit-maxmind-city console c smoke benchmark pack stats
 
 MERIDIAN_DATA_DIR ?= $(CURDIR)/lib/meridian
 NPM_CACHE ?= /private/tmp/meridian-npm-cache
@@ -96,6 +96,9 @@ data-check: ## Verify required source and processed data files exist
 
 data-validate: build data-host ## Validate host data layout, CSV schemas, and sample lookups
 	node scripts/validate_data.mjs --data-dir "$(MERIDIAN_DATA_DIR)"
+
+data-compatibility: data-host ## Generate MaxMind-to-IBGE/GHSL alias files and compatibility reports
+	node scripts/build_compatibility_aliases.mjs --data-dir "$(MERIDIAN_DATA_DIR)" --output-dir "$(MERIDIAN_DATA_DIR)" --reports-dir "$(CURDIR)/reports/compatibility"
 
 audit-maxmind-city: data-host ## Audit MaxMind city names against IBGE and GHSL indexes
 	node scripts/audit_maxmind_city.mjs --data-dir "$(MERIDIAN_DATA_DIR)" --output-dir "$(CURDIR)/reports/audit"

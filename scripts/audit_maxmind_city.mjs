@@ -135,6 +135,9 @@ function buildIbgeIndexes(rows) {
   const cityToStates = new Map();
 
   for (const row of rows) {
+    if (!normalize(row.city) || !normalize(row.state)) {
+      continue;
+    }
     raw.add(`${row.city}|${row.state}`);
     normalized.add(`${normalize(row.city)}|${normalize(row.state)}`);
     alias.add(`${normalize(row.city)}|${canonicalBrazilState(row.state)}`);
@@ -152,6 +155,9 @@ function buildGhslIndexes(rows) {
   const cityToCountries = new Map();
 
   for (const row of rows) {
+    if (!normalize(row.city) || !normalize(row.country)) {
+      continue;
+    }
     raw.add(`${row.city}|${row.country}`);
     normalized.add(`${normalize(row.city)}|${normalize(row.country)}`);
     const aliasKey = `${normalize(row.city)}|${canonicalCountry(row.country)}`;
@@ -246,12 +252,15 @@ function matchIbgeStage(record, indexes) {
   const state = record.subdivisionIso;
 
   for (const city of record.cityNames) {
+    if (!normalize(city)) continue;
     if (indexes.raw.has(`${city}|${state}`)) return "raw";
   }
   for (const city of record.cityNames) {
+    if (!normalize(city)) continue;
     if (indexes.normalized.has(`${normalize(city)}|${normalize(state)}`)) return "normalized";
   }
   for (const city of record.cityNames) {
+    if (!normalize(city)) continue;
     if (indexes.alias.has(`${normalize(city)}|${canonicalBrazilState(state)}`)) return "alias";
   }
   return "unmatched";
@@ -261,17 +270,23 @@ function matchGhslStage(record, indexes) {
   const countryVariants = unique([...record.countryNames, record.countryIso]);
 
   for (const city of record.cityNames) {
+    if (!normalize(city)) continue;
     for (const country of countryVariants) {
+      if (!canonicalCountry(country)) continue;
       if (indexes.raw.has(`${city}|${country}`)) return "raw";
     }
   }
   for (const city of record.cityNames) {
+    if (!normalize(city)) continue;
     for (const country of countryVariants) {
+      if (!canonicalCountry(country)) continue;
       if (indexes.normalized.has(`${normalize(city)}|${normalize(country)}`)) return "normalized";
     }
   }
   for (const city of record.cityNames) {
+    if (!normalize(city)) continue;
     for (const country of countryVariants) {
+      if (!canonicalCountry(country)) continue;
       if (indexes.alias.has(`${normalize(city)}|${canonicalCountry(country)}`)) return "alias";
     }
   }
@@ -280,7 +295,9 @@ function matchGhslStage(record, indexes) {
 
 function ghslHasDuplicateAlias(record, indexes) {
   for (const city of record.cityNames) {
+    if (!normalize(city)) continue;
     for (const country of unique([...record.countryNames, record.countryIso])) {
+      if (!canonicalCountry(country)) continue;
       if ((indexes.duplicateCounts.get(`${normalize(city)}|${canonicalCountry(country)}`) ?? 0) > 1) {
         return true;
       }
@@ -292,6 +309,7 @@ function ghslHasDuplicateAlias(record, indexes) {
 function ibgeCandidateStates(record, indexes) {
   const states = new Set();
   for (const city of record.cityNames) {
+    if (!normalize(city)) continue;
     for (const state of indexes.cityToStates.get(normalize(city)) ?? []) {
       states.add(state);
     }
@@ -302,6 +320,7 @@ function ibgeCandidateStates(record, indexes) {
 function ghslCandidateCountries(record, indexes) {
   const countries = new Set();
   for (const city of record.cityNames) {
+    if (!normalize(city)) continue;
     for (const country of indexes.cityToCountries.get(normalize(city)) ?? []) {
       countries.add(country);
     }

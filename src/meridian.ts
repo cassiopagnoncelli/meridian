@@ -3,14 +3,24 @@ import { isIP } from "node:net";
 import { join } from "node:path";
 
 import { MeridianDataError, MeridianInputError } from "./errors";
-import { loadGhsl, type GhslIndex } from "./loaders/ghsl";
-import { loadIbge, type IbgeIndex } from "./loaders/ibge";
-import { loadMaxMind, lookupIp, type MaxMindReaders } from "./loaders/maxmind";
-import { cityCountryKey, cityStateKey } from "./normalize";
+import { loadGhsl, lookupGhsl, type GhslIndex } from "./loaders/ghsl";
+import { loadIbge, lookupIbge, type IbgeIndex } from "./loaders/ibge";
+import {
+  loadMaxMind,
+  lookupMaxMind,
+  maxMindCityNameVariants,
+  maxMindCountryVariants,
+  polishMaxMindLookup,
+  rawMaxMindLookup,
+  type MaxMindLookup,
+  type MaxMindReaders
+} from "./loaders/maxmind";
+import { canonicalCountry } from "./aliases";
 import { ALL_SOURCES, defaultDataDir, requiredFiles, type RequiredFile } from "./paths";
 import type {
   GhslCityMetrics,
   IbgeMunicipalityIncome,
+  MeridianIpCityResult,
   MeridianIpRawResult,
   MeridianIpResult,
   MeridianMetadata,
@@ -50,10 +60,16 @@ export class Meridian {
     const [maxmind, ibge, ghsl] = await Promise.all([
       availableSources.includes("maxmind") ? loadMaxMind(dataDir) : Promise.resolve(null),
       availableSources.includes("ibge")
-        ? loadIbge(join(dataDir, "ibge", "ibge_municipality_income.csv"))
+        ? loadIbge(
+            join(dataDir, "ibge", "ibge_municipality_income.csv"),
+            join(dataDir, "ibge", "ibge_city_aliases.csv")
+          )
         : Promise.resolve(null),
       availableSources.includes("ghsl")
-        ? loadGhsl(join(dataDir, "ghsl", "ghsl_city_metrics.csv"))
+        ? loadGhsl(
+            join(dataDir, "ghsl", "ghsl_city_metrics.csv"),
+            join(dataDir, "ghsl", "ghsl_city_aliases.csv")
+          )
         : Promise.resolve(null)
     ]);
 
@@ -61,28 +77,45 @@ export class Meridian {
   }
 
   ip(ipAddress: string): MeridianIpResult | null;
-  ip(ipAddress: string, raw: false): MeridianIpResult | null;
+  ip(ipAddress: string, raw: false, city?: false): MeridianIpResult | null;
+  ip(ipAddress: string, raw: false, city: true): MeridianIpCityResult | null;
   ip(ipAddress: string, raw: true): MeridianIpRawResult | null;
+  ip(ipAddress: string, raw: true, city: boolean): MeridianIpRawResult | null;
   ip(ipAddress: string, raw: boolean): MeridianIpResult | MeridianIpRawResult | null;
-  ip(ipAddress: string, raw = false): MeridianIpResult | MeridianIpRawResult | null {
+  ip(ipAddress: string, raw: boolean, city: boolean): MeridianIpResult | MeridianIpRawResult | MeridianIpCityResult | null;
+  ip(ipAddress: string, raw = false, city = false): MeridianIpResult | MeridianIpRawResult | MeridianIpCityResult | null {
     if (!isIP(ipAddress)) {
       throw new MeridianInputError(`Invalid IP address: ${ipAddress}`);
     }
     if (!this.#maxmind) {
       return null;
     }
-    return raw ? lookupIp(this.#maxmind, ipAddress, true) : lookupIp(this.#maxmind, ipAddress);
+
+    const lookup = lookupMaxMind(this.#maxmind, ipAddress);
+    if (raw) {
+      return rawMaxMindLookup(lookup);
+    }
+
+    const result = polishMaxMindLookup(ipAddress, lookup);
+    if (!city) {
+      return result;
+    }
+
+    return {
+      ...result,
+      ibge: this.#lookupIpIbge(lookup, result),
+      ghsl: this.#lookupIpGhsl(lookup)
+    };
   }
 
   ibge(city: string, state: string): IbgeMunicipalityIncome | null {
-    const record = this.#ibge?.get(cityStateKey(city, state));
+    const record = lookupIbge(this.#ibge, city, state);
     return record ? cloneIbge(record) : null;
   }
 
   ghsl(city: string, country: string): GhslCityMetrics | null {
-    const records = this.#ghsl?.get(cityCountryKey(city, country));
-    const record = records?.[0];
-    return record ? { ...record } : null;
+    const record = lookupGhsl(this.#ghsl, city, country);
+    return record ? cloneGhsl(record) : null;
   }
 
   sources(): MeridianSourcesStatus {
@@ -102,11 +135,50 @@ export class Meridian {
   }
 
   close(): void {
-    this.#ibge?.clear();
-    this.#ghsl?.clear();
+    this.#ibge?.canonical.clear();
+    this.#ibge?.aliases.clear();
+    this.#ghsl?.canonical.clear();
+    this.#ghsl?.aliases.clear();
     this.#maxmind = null;
     this.#ibge = null;
     this.#ghsl = null;
+  }
+
+  #lookupIpIbge(lookup: MaxMindLookup, result: MeridianIpResult): IbgeMunicipalityIncome | null {
+    if (!this.#ibge || !isBrazil(lookup)) {
+      return null;
+    }
+
+    const state = result.subdivision.isoCode;
+    if (!state) {
+      return null;
+    }
+
+    for (const city of maxMindCityNameVariants(lookup)) {
+      const record = lookupIbge(this.#ibge, city, state);
+      if (record) {
+        return cloneIbge(record);
+      }
+    }
+
+    return null;
+  }
+
+  #lookupIpGhsl(lookup: MaxMindLookup): GhslCityMetrics | null {
+    if (!this.#ghsl) {
+      return null;
+    }
+
+    for (const city of maxMindCityNameVariants(lookup)) {
+      for (const country of maxMindCountryVariants(lookup)) {
+        const record = lookupGhsl(this.#ghsl, city, country);
+        if (record) {
+          return cloneGhsl(record);
+        }
+      }
+    }
+
+    return null;
   }
 }
 
@@ -115,6 +187,14 @@ function cloneIbge(record: IbgeMunicipalityIncome): IbgeMunicipalityIncome {
     ...record,
     income: { ...record.income }
   };
+}
+
+function cloneGhsl(record: GhslCityMetrics): GhslCityMetrics {
+  return { ...record };
+}
+
+function isBrazil(lookup: MaxMindLookup): boolean {
+  return maxMindCountryVariants(lookup).some((country) => canonicalCountry(country) === "Brazil");
 }
 
 function normalizeSources(sources: MeridianSource[]): MeridianSource[] {

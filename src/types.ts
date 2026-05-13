@@ -38,6 +38,11 @@ export type MeridianIpResult = {
     longitude: number | null;
     timeZone: string | null;
   };
+  subdivision: {
+    isoCode: string | null;
+    name: string | null;
+    geonameId: number | null;
+  };
   country: {
     isoCode: string | null;
     name: string | null;
@@ -54,6 +59,11 @@ export type MeridianIpRawResult = {
   city: MeridianJsonValue | null;
   country: MeridianJsonValue | null;
   asn: MeridianJsonValue | null;
+};
+
+export type MeridianIpCityResult = MeridianIpResult & {
+  ibge: IbgeMunicipalityIncome | null;
+  ghsl: GhslCityMetrics | null;
 };
 
 export type IbgeMunicipalityIncome = {

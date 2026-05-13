@@ -4,6 +4,7 @@ export type {
   GhslCityMetrics,
   IbgeMunicipalityIncome,
   MeridianFileMetadata,
+  MeridianIpCityResult,
   MeridianIpRawResult,
   MeridianIpResult,
   MeridianJsonPrimitive,

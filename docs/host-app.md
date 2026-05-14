@@ -14,6 +14,7 @@ lib/meridian/
   ghsl/
     ghsl_city_metrics.csv
     ghsl_city_aliases.csv
+    ghsl_geoname_map.csv
 ```
 
 The default `Meridian.open()` call resolves this directory from the host app's
@@ -37,6 +38,7 @@ const meridian = await Meridian.open({
 - `ibge_municipality_income.csv` contains 2022 mean and median monthly household income per capita in BRL.
 - `ghsl_city_metrics.csv` contains city profile attributes only. GHSL GDP is intentionally omitted.
 - `ibge_city_aliases.csv` and `ghsl_city_aliases.csv` are optional compatibility indexes generated from MaxMind city names.
+- `ghsl_geoname_map.csv` is an optional compatibility index mapping MaxMind city geoname ids to canonical GHSL urban-centre ids.
 
 ## Validation
 
@@ -45,6 +47,7 @@ From this repository, prepare and validate local data with:
 ```sh
 make data-host
 make data-compatibility
+make ghsl-geoname-map
 make sanity-intersections
 make data-validate
 ```
@@ -53,6 +56,8 @@ make data-validate
 sample lookups for MaxMind, IBGE, and GHSL.
 `data-compatibility` writes optional city alias files into `lib/meridian` and
 summary JSON files under `reports/compatibility`.
+`ghsl-geoname-map` writes `lib/meridian/ghsl/ghsl_geoname_map.csv` plus a
+review CSV under `reports/compatibility`.
 `sanity-intersections` compares canonical IBGE/GHSL rows against the generated
 MaxMind intersections and writes mismatch/missing CSV reports.
 

@@ -1,0 +1,2 @@
+maxmind_geoname_id,country_iso,subdivision_iso,ghsl_urban_centre_id,method,confidence,distance_km,maxmind_city_names,maxmind_subdivision_names,ghsl_city,ghsl_country,notes
+3448439,BR,SP,6351,name,high,,Sao Paulo,Sao Paulo,São Paulo,Brazil,test fixture

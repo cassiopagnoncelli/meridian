@@ -8,12 +8,14 @@ import type { GhslCityMetrics } from "../types";
 export type GhslIndex = {
   canonical: Map<string, GhslCityMetrics[]>;
   aliases: Map<string, GhslCityMetrics[]>;
+  geonameMap: Map<string, GhslCityMetrics>;
 };
 
-export async function loadGhsl(path: string, aliasesPath?: string): Promise<GhslIndex> {
+export async function loadGhsl(path: string, aliasesPath?: string, geonameMapPath?: string): Promise<GhslIndex> {
   const rows = await parseCsvRows(path);
   const canonical = new Map<string, GhslCityMetrics[]>();
   const aliases = new Map<string, GhslCityMetrics[]>();
+  const geonameMap = new Map<string, GhslCityMetrics>();
   const recordsById = new Map<string, GhslCityMetrics>();
 
   for (const row of rows) {
@@ -54,10 +56,23 @@ export async function loadGhsl(path: string, aliasesPath?: string): Promise<Ghsl
     }
   }
 
+  if (geonameMapPath && (await exists(geonameMapPath))) {
+    for (const row of await parseCsvRows(geonameMapPath)) {
+      const geonameId = row.maxmind_geoname_id?.trim();
+      const urbanCentreId = row.ghsl_urban_centre_id?.trim();
+      const confidence = row.confidence?.trim().toLowerCase();
+      const record = urbanCentreId ? recordsById.get(urbanCentreId) : null;
+
+      if (geonameId && record && confidence !== "review") {
+        geonameMap.set(geonameId, record);
+      }
+    }
+  }
+
   sortBuckets(canonical);
   sortBuckets(aliases);
 
-  return { canonical, aliases };
+  return { canonical, aliases, geonameMap };
 }
 
 export function lookupGhsl(index: GhslIndex | null | undefined, city: string, country: string): GhslCityMetrics | null {
@@ -67,6 +82,17 @@ export function lookupGhsl(index: GhslIndex | null | undefined, city: string, co
 
   const key = cityCountryKey(city, country);
   return index?.canonical.get(key)?.[0] ?? index?.aliases.get(key)?.[0] ?? null;
+}
+
+export function lookupGhslByGeonameId(
+  index: GhslIndex | null | undefined,
+  geonameId: number | string | null | undefined
+): GhslCityMetrics | null {
+  if (geonameId === null || geonameId === undefined || geonameId === "") {
+    return null;
+  }
+
+  return index?.geonameMap.get(String(geonameId)) ?? null;
 }
 
 function addRecord(index: Map<string, GhslCityMetrics[]>, key: string, record: GhslCityMetrics): void {

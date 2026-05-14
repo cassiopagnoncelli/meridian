@@ -16,6 +16,7 @@ lib/meridian/
   ghsl/
     ghsl_city_metrics.csv
     ghsl_city_aliases.csv
+    ghsl_geoname_map.csv
 ```
 
 ## Usage
@@ -55,7 +56,11 @@ const meridian = await Meridian.open({
 Lookup keys are accent-insensitive, punctuation-insensitive, and case-insensitive.
 Common country aliases (`US`, `USA`, `UK`, `Brasil`) and Brazilian state names
 (`São Paulo`, `Paraná`, etc.) are normalized at lookup time.
-Optional `ibge_city_aliases.csv` and `ghsl_city_aliases.csv` files add MaxMind-derived city aliases while preserving canonical returned city names.
+Optional `ibge_city_aliases.csv`, `ghsl_city_aliases.csv`, and
+`ghsl_geoname_map.csv` files add MaxMind-derived lookup compatibility while
+preserving canonical returned city names. When `ghsl_geoname_map.csv` exists,
+IP enrichment trusts MaxMind city geoname-id mappings before looser city-name
+fallbacks.
 
 ## Operations
 
@@ -63,6 +68,7 @@ Optional `ibge_city_aliases.csv` and `ghsl_city_aliases.csv` files add MaxMind-d
 make data-host       # prepare local lib/meridian symlinks
 make data-validate   # validate host data files and sample lookups
 make data-compatibility  # generate MaxMind-to-IBGE/GHSL alias files
+make ghsl-geoname-map  # generate MaxMind geoname-id to GHSL urban-centre map
 make sanity-intersections  # compare canonical datasets against MaxMind intersections
 make audit-maxmind-city  # audit MaxMind city coverage against IBGE and GHSL
 make console         # open a REPL with ip(), ibge(), ghsl(), and meridian loaded

@@ -3,7 +3,7 @@ import { isIP } from "node:net";
 import { join } from "node:path";
 
 import { MeridianDataError, MeridianInputError } from "./errors";
-import { loadGhsl, lookupGhsl, type GhslIndex } from "./loaders/ghsl";
+import { loadGhsl, lookupGhsl, lookupGhslByGeonameId, type GhslIndex } from "./loaders/ghsl";
 import { loadIbge, lookupIbge, type IbgeIndex } from "./loaders/ibge";
 import {
   loadMaxMind,
@@ -68,7 +68,8 @@ export class Meridian {
       availableSources.includes("ghsl")
         ? loadGhsl(
             join(dataDir, "ghsl", "ghsl_city_metrics.csv"),
-            join(dataDir, "ghsl", "ghsl_city_aliases.csv")
+            join(dataDir, "ghsl", "ghsl_city_aliases.csv"),
+            join(dataDir, "ghsl", "ghsl_geoname_map.csv")
           )
         : Promise.resolve(null)
     ]);
@@ -139,6 +140,7 @@ export class Meridian {
     this.#ibge?.aliases.clear();
     this.#ghsl?.canonical.clear();
     this.#ghsl?.aliases.clear();
+    this.#ghsl?.geonameMap.clear();
     this.#maxmind = null;
     this.#ibge = null;
     this.#ghsl = null;
@@ -166,6 +168,14 @@ export class Meridian {
 
   #lookupIpGhsl(lookup: MaxMindLookup): GhslCityMetrics | null {
     if (!this.#ghsl) {
+      return null;
+    }
+
+    const mappedRecord = lookupGhslByGeonameId(this.#ghsl, lookup.city?.city?.geonameId);
+    if (mappedRecord) {
+      return cloneGhsl(mappedRecord);
+    }
+    if (lookup.city?.city?.geonameId && this.#ghsl.geonameMap.size > 0) {
       return null;
     }
 

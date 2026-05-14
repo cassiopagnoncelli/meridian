@@ -11,16 +11,51 @@ const outputDir = resolve(optionValue("--output-dir") ?? join(process.cwd(), "re
 const countryAliases = new Map([
   ["brasil", "brazil"],
   ["br", "brazil"],
+  ["gb", "united kingdom"],
   ["uk", "united kingdom"],
   ["u k", "united kingdom"],
   ["great britain", "united kingdom"],
   ["britain", "united kingdom"],
   ["england", "united kingdom"],
+  ["tr", "turkey"],
+  ["turkiye", "turkey"],
+  ["turquia", "turkey"],
+  ["turquie", "turkey"],
+  ["turkei", "turkey"],
   ["us", "united states"],
   ["u s", "united states"],
   ["usa", "united states"],
   ["u s a", "united states"],
-  ["united states of america", "united states"]
+  ["united states of america", "united states"],
+  ["cd", "democratic republic of the congo"],
+  ["congo kinshasa", "democratic republic of the congo"],
+  ["dr congo", "democratic republic of the congo"],
+  ["drc", "democratic republic of the congo"],
+  ["cg", "republic of the congo"],
+  ["congo brazzaville", "republic of the congo"],
+  ["hk", "china"],
+  ["hong kong sar china", "china"],
+  ["ru", "russia"],
+  ["russian federation", "russia"],
+  ["kr", "south korea"],
+  ["korea republic of", "south korea"],
+  ["kp", "north korea"],
+  ["ir", "iran"],
+  ["iran islamic republic of", "iran"],
+  ["vn", "vietnam"],
+  ["viet nam", "vietnam"],
+  ["la", "laos"],
+  ["lao people s democratic republic", "laos"],
+  ["sy", "syria"],
+  ["syrian arab republic", "syria"],
+  ["bo", "bolivia"],
+  ["bolivia plurinational state of", "bolivia"],
+  ["tz", "tanzania"],
+  ["tanzania united republic of", "tanzania"],
+  ["md", "moldova"],
+  ["moldova republic of", "moldova"],
+  ["bn", "brunei"],
+  ["brunei darussalam", "brunei"]
 ]);
 
 const brazilStateAliases = new Map([
@@ -44,11 +79,12 @@ for (const uf of [
 
 const ibgeRows = await csvRows(join(dataDir, "ibge", "ibge_municipality_income.csv"));
 const ghslRows = await csvRows(join(dataDir, "ghsl", "ghsl_city_metrics.csv"));
+const ghslGeonameRows = await optionalCsvRows(join(dataDir, "ghsl", "ghsl_geoname_map.csv"));
 const cityReader = await maxmind.open(join(dataDir, "maxmind", "GeoLite2-City.mmdb"));
 const maxmindRecords = enumerateMaxMindCityRecords(cityReader);
 
 const ibgeIndexes = buildIbgeIndexes(ibgeRows);
-const ghslIndexes = buildGhslIndexes(ghslRows);
+const ghslIndexes = buildGhslIndexes(ghslRows, ghslGeonameRows);
 const ibgeAudit = auditIbge(maxmindRecords, ibgeIndexes);
 const ghslAudit = auditGhsl(maxmindRecords, ghslIndexes);
 const pipelineMetrics = calculatePipelineMetrics(maxmindRecords, ibgeIndexes, ghslIndexes);
@@ -152,10 +188,11 @@ function buildIbgeIndexes(rows) {
   return { raw, normalized, alias, cityToStates };
 }
 
-function buildGhslIndexes(rows) {
+function buildGhslIndexes(rows, geonameRows = []) {
   const raw = new Set();
   const normalized = new Set();
   const alias = new Set();
+  const geonameMap = new Set();
   const duplicateCounts = new Map();
   const cityToCountries = new Map();
 
@@ -171,7 +208,16 @@ function buildGhslIndexes(rows) {
     addMapSet(cityToCountries, normalize(row.city), row.country);
   }
 
-  return { raw, normalized, alias, duplicateCounts, cityToCountries };
+  for (const row of geonameRows) {
+    const geonameId = row.maxmind_geoname_id?.trim();
+    const urbanCentreId = row.ghsl_urban_centre_id?.trim();
+    const confidence = row.confidence?.trim().toLowerCase();
+    if (geonameId && urbanCentreId && confidence !== "review") {
+      geonameMap.add(geonameId);
+    }
+  }
+
+  return { raw, normalized, alias, geonameMap, geonameMapAvailable: geonameRows.length > 0, duplicateCounts, cityToCountries };
 }
 
 function auditIbge(records, indexes) {
@@ -299,6 +345,13 @@ function matchIbgeStage(record, indexes) {
 }
 
 function matchGhslStage(record, indexes) {
+  if (record.cityGeonameId && indexes.geonameMap.has(String(record.cityGeonameId))) {
+    return "geoname_map";
+  }
+  if (record.cityGeonameId && indexes.geonameMapAvailable) {
+    return "unmatched";
+  }
+
   const countryVariants = unique([...record.countryNames, record.countryIso]);
 
   for (const city of record.cityNames) {
@@ -378,6 +431,7 @@ function baseSummary(totalMaxMindCityRecords) {
     matchedRaw: 0,
     matchedNormalized: 0,
     matchedAlias: 0,
+    matchedGeonameMap: 0,
     unmatched: 0,
     matchableTotal: 0,
     matchedTotal: 0,
@@ -389,11 +443,12 @@ function incrementStage(summary, stage) {
   if (stage === "raw") summary.matchedRaw += 1;
   else if (stage === "normalized") summary.matchedNormalized += 1;
   else if (stage === "alias") summary.matchedAlias += 1;
+  else if (stage === "geoname_map") summary.matchedGeonameMap += 1;
   else summary.unmatched += 1;
 }
 
 function finalizeSummary(summary) {
-  summary.matchedTotal = summary.matchedRaw + summary.matchedNormalized + summary.matchedAlias;
+  summary.matchedTotal = summary.matchedRaw + summary.matchedNormalized + summary.matchedAlias + summary.matchedGeonameMap;
   summary.matchableTotal = summary.matchedTotal + summary.unmatched;
   summary.matchRate = summary.matchableTotal === 0 ? 0 : Number((summary.matchedTotal / summary.matchableTotal).toFixed(6));
 }
@@ -456,6 +511,17 @@ async function csvRows(path) {
   return parse(content, { bom: true, columns: true, skip_empty_lines: true });
 }
 
+async function optionalCsvRows(path) {
+  try {
+    return await csvRows(path);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+}
+
 async function writeJson(path, value) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -490,7 +556,7 @@ function csvCell(value) {
 
 function printSummary(label, summary) {
   console.log(`${label}: matched ${summary.matchedTotal}/${summary.matchableTotal} (${(summary.matchRate * 100).toFixed(2)}%)`);
-  console.log(`  raw=${summary.matchedRaw} normalized=${summary.matchedNormalized} alias=${summary.matchedAlias} unmatched=${summary.unmatched}`);
+  console.log(`  raw=${summary.matchedRaw} normalized=${summary.matchedNormalized} alias=${summary.matchedAlias} geoname_map=${summary.matchedGeonameMap} unmatched=${summary.unmatched}`);
 }
 
 function printPipelineMetrics(summary) {

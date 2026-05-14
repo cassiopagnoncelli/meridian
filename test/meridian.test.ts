@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 import { Meridian, MeridianDataError, MeridianInputError } from "../src";
+import { loadGhsl, lookupGhslByGeonameId } from "../src/loaders/ghsl";
 
 const fixtureDataDir = resolve("test/fixtures/meridian");
 const noAliasDataDir = resolve("test/fixtures/meridian-no-alias");
@@ -127,6 +128,16 @@ describe("Meridian city data", () => {
     });
 
     expect(meridian.ghsl("Springfield", "United States")?.urbanCentreId).toBe("large");
+  });
+
+  it("loads optional GHSL MaxMind geoname-id maps", async () => {
+    const index = await loadGhsl(
+      resolve(fixtureDataDir, "ghsl/ghsl_city_metrics.csv"),
+      resolve(fixtureDataDir, "ghsl/ghsl_city_aliases.csv"),
+      resolve(fixtureDataDir, "ghsl/ghsl_geoname_map.csv")
+    );
+
+    expect(lookupGhslByGeonameId(index, 3448439)?.urbanCentreId).toBe("6351");
   });
 });
 
@@ -292,6 +303,30 @@ describe("compatibility alias tooling", () => {
     expect(JSON.parse(stdout)).toEqual({
       ibge: ["alias_city", "state", "ibge_municipality_code"],
       ghsl: ["alias_city", "country", "ghsl_urban_centre_id"]
+    });
+  });
+
+  it("prints stable GHSL geoname map CSV headers", async () => {
+    const { stdout } = await execFileAsync("node", [
+      "scripts/build_ghsl_geoname_map.mjs",
+      "--print-headers"
+    ]);
+
+    expect(JSON.parse(stdout)).toEqual({
+      ghsl_geoname_map: [
+        "maxmind_geoname_id",
+        "country_iso",
+        "subdivision_iso",
+        "ghsl_urban_centre_id",
+        "method",
+        "confidence",
+        "distance_km",
+        "maxmind_city_names",
+        "maxmind_subdivision_names",
+        "ghsl_city",
+        "ghsl_country",
+        "notes"
+      ]
     });
   });
 });

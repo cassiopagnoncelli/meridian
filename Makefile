@@ -7,7 +7,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-.PHONY: help setup install build typecheck test tests ci clean distclean \
+.PHONY: help setup install build typecheck lint style test tests ci clean distclean \
         data data-fetch-ibge data-processed data-host data-check data-validate \
         data-compatibility ghsl-geoname-map sanity-intersections audit-maxmind-city console c smoke benchmark pack stats
 
@@ -45,6 +45,10 @@ build: ## Build ESM, CJS, and TypeScript declarations
 
 typecheck: ## Run TypeScript without emitting files
 	$(NPM) run typecheck
+
+lint: typecheck ## Lint (Meridian has no linter; maps to typecheck)
+
+style: typecheck ## Style check (Meridian has no formatter; maps to typecheck)
 
 test: ## Build and run the Vitest suite
 	$(NPM) test

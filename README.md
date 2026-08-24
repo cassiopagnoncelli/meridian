@@ -22,10 +22,10 @@
 >
 > ### What deliberately did NOT go, and why
 >
-> **`src/mmdb/` — meridian's own MaxMind reader.** Polaris already reads
-> GeoLite2 through `mmdb-lib` in `sync/enrichment/geoip/v1`. Two
-> implementations of one lookup is precisely the outcome the absorption
-> existed to avoid.
+> **`src/loaders/maxmind.ts` — meridian's MaxMind reader.** It wraps
+> `@maxmind/geoip2-node`; Polaris reads GeoLite2 through `mmdb-lib` in
+> `sync/enrichment/geoip/v1`. Two readers for one lookup is precisely the
+> outcome the absorption existed to avoid, so Polaris kept its own.
 >
 > **IBGE — `ibge_municipality_income.csv`, `ibge_city_aliases.csv`,
 > `src/loaders/ibge.ts`, `scripts/fetch_ibge_income.py`.** Ruled out
@@ -39,12 +39,15 @@
 > are, on every event. GHSL's `world_bank_income_group` is the tier that
 > attaches everywhere instead.
 >
-> That refusal is cheap to reverse and was left that way on purpose. The data
-> is re-derivable: `scripts/fetch_ibge_income.py` and
-> `scripts/build_processed_datasets.py` are still readable here, and IBGE
-> publishes the source tables. If Polaris ever wants municipality income it
-> comes back as its own card with its own record — keyed, fielded and
-> country-scoped on purpose.
+> That refusal is cheap to reverse and was left that way on purpose. What
+> survives archiving is the CODE, not the data: `datasets/processed` and
+> `lib/meridian` are gitignored here, so `ibge_municipality_income.csv` and
+> `ibge_city_aliases.csv` exist only on machines that built them.
+> `scripts/fetch_ibge_income.py` and `scripts/build_processed_datasets.py`
+> are tracked and stay readable, and IBGE publishes the source tables — which
+> is what makes the refusal reversible. If Polaris ever wants municipality
+> income it comes back as its own card with its own record: keyed, fielded
+> and country-scoped on purpose.
 >
 > **`scripts/build_compatibility_aliases.mjs` and
 > `scripts/build_ghsl_geoname_map.mjs`.** Not ported, and not needed. Polaris
@@ -53,6 +56,13 @@
 > release's own GeoPackage — so it needs neither the MaxMind enumeration the
 > first script did through private `mmdb-lib` internals, nor the GDAL
 > point-in-polygon join the second one needed (Polaris card ODQRT).
+>
+> Not a like-for-like replacement, and worth saying so: meridian's alias table
+> was 25,630 rows keyed on ISO-2 country codes, derived against GeoLite2;
+> Polaris's is 5,436 rows keyed on full country names, derived from JRC's own
+> statement of which settlements each urban centre comprises. Different
+> source, different provenance, narrower. The 25,630-row file was gitignored
+> here and does not survive the archive either.
 
 
 Local data enrichment library for Node.js.

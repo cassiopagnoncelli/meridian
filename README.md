@@ -1,5 +1,60 @@
 # Meridian
 
+> ## Retired — this code now lives in Polaris
+>
+> **Status: archived, 2026-08-24.** Meridian has no consumer. Everything it
+> was used for is in [Polaris](https://github.com/cassiopagnoncelli/polaris),
+> and this repository is kept readable rather than deleted because it is the
+> provenance of that code: Polaris's comments cite it by path and by commit
+> `63768d7`, and those citations should keep resolving.
+>
+> Nothing here is maintained. Do not add to it, and do not import from it.
+>
+> ### Where each piece went
+>
+> | Meridian | Polaris | Card |
+> | --- | --- | --- |
+> | GHSL loaders, CSV reading, normalisation, alias resolution | `sync/enrichment/ghsl/v1` | LXC6O |
+> | GeoLite2 reading | `sync/enrichment/geoip/v1` (already existed, on `mmdb-lib`) | — |
+> | Keyless GeoLite2 fetch | `infra/geoip/refresh-geoip.sh` | 5NN52 |
+> | Dataset update and verify scripts | `polaris datasets update` / `verify` / `status` | 8OOYE |
+> | `scripts/build_processed_datasets.py` (GHSL reduction) | `apps/polaris-cli/src/commands/datasets/ghsl.ts` | 8OOYE |
+>
+> ### What deliberately did NOT go, and why
+>
+> **`src/mmdb/` — meridian's own MaxMind reader.** Polaris already reads
+> GeoLite2 through `mmdb-lib` in `sync/enrichment/geoip/v1`. Two
+> implementations of one lookup is precisely the outcome the absorption
+> existed to avoid.
+>
+> **IBGE — `ibge_municipality_income.csv`, `ibge_city_aliases.csv`,
+> `src/loaders/ibge.ts`, `scripts/fetch_ibge_income.py`.** Ruled out
+> deliberately, not overlooked, by Polaris ADR-0016 Ruling 3. In short: a
+> Brazilian visitor would carry an income figure and an identical visitor
+> anywhere else would carry nothing, so every consumer writes
+> country-conditional code and every audience built on it silently means
+> "Brazilians only"; it keys on city + state where GHSL keys on city +
+> country, so none of the keying work is reused; and municipality-granularity
+> household income invites an inference about a person's means from where they
+> are, on every event. GHSL's `world_bank_income_group` is the tier that
+> attaches everywhere instead.
+>
+> That refusal is cheap to reverse and was left that way on purpose. The data
+> is re-derivable: `scripts/fetch_ibge_income.py` and
+> `scripts/build_processed_datasets.py` are still readable here, and IBGE
+> publishes the source tables. If Polaris ever wants municipality income it
+> comes back as its own card with its own record — keyed, fielded and
+> country-scoped on purpose.
+>
+> **`scripts/build_compatibility_aliases.mjs` and
+> `scripts/build_ghsl_geoname_map.mjs`.** Not ported, and not needed. Polaris
+> builds the alias table from GHSL's own `GC_UCN_LIS_2025` name lists, and
+> resolves an address-derived city by position against the centroids in the
+> release's own GeoPackage — so it needs neither the MaxMind enumeration the
+> first script did through private `mmdb-lib` internals, nor the GDAL
+> point-in-polygon join the second one needed (Polaris card ODQRT).
+
+
 Local data enrichment library for Node.js.
 
 Meridian is code-only. Host applications provide data files under:
